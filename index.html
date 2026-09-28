@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>それだれスナップ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+    
+    body {
+      margin: 0; padding: 0; background-color: #111;
+      font-family: 'Hiragino Maru Gothic ProN', 'Chalkboard SE', sans-serif;
+      display: flex; justify-content: center; align-items: center;
+      width: 100vw; height: 100vh; overflow: hidden;
+    }
+    
+    /* 📱 画面いっぱいに広がるレスポンシブコンテナ */
+    #app-container {
+      width: 100%; height: 100%; max-width: 480px; 
+      background-color: #fff; 
+      position: relative; overflow: hidden; cursor: pointer;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      transition: background-color 0.2s;
+    }
+
+    .corner-char {
+      position: absolute; 
+      width: 100%;       
+      max-width: 150px; 
+      height: auto; 
+      z-index: 20; 
+      transition: transform 0.4s ease, opacity 0.3s;
+    }
+    #app-container.is-title .corner-char { opacity: 0.3; }
+    
+    #char-tl { top: -15px; left: -25px; transform-origin: top left; }
+    #char-tr { top: -5px; right: -45px; transform-origin: top right; }
+    #char-bl { bottom: -15px; left: -25px; transform-origin: bottom left; }
+    #char-br { bottom: -25px; right: -25px; transform-origin: bottom right;}
+
+    .corner-char.speaking { 
+      transform: scale(1.25); 
+      z-index: 50; 
+    }
+
+    .title-logo-container {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      z-index: 40; transition: opacity 0.3s; opacity: 0; pointer-events: none;
+      width: 80%; max-width: 280px; text-align: center;
+    }
+    .title-logo-container img { 
+      width: 100%; 
+      height: auto; 
+    }
+    #app-container.is-title .title-logo-container { opacity: 1; }
+
+    #bubble-container {
+      position: absolute; left: 50%; width: 85%; max-width: 280px; height: 105px;
+      bottom: 135px; top: auto;
+      transform: translate(-50%, 20px) scale(0);
+      z-index: 60; transition: transform 0.4s ease, opacity 0.3s;
+      opacity: 0; pointer-events: none;
+    }
+    #bubble-container.visible { 
+      opacity: 1; 
+      transform: translate(-50%, 0) scale(1);
+    }
+
+    .speech-bubble {
+      position: relative;
+      width: 100%; height: 100%; background-color: #fff; 
+      border: 4px solid #111; border-radius: 20px; box-shadow: 4px 4px 0 #111;
+      display: flex; align-items: center; justify-content: center;
+      padding: 10px 15px; text-align: center; font-weight: 900; font-size: 13px; line-height: 1.4; color: #111;
+    }
+
+    #center-box {
+      position: absolute; top: 50%; left: 50%; width: 85%; max-width: 320px;
+      transform: translate(-50%, -50%) scale(0);
+      background: #fff; border: 4px solid #111; border-radius: 24px;
+      box-shadow: 6px 6px 0 #111; padding: 25px 20px; text-align: center;
+      z-index: 60; opacity: 0; pointer-events: none;
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+    }
+    #center-box.visible { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    .center-text { font-size: 17px; font-weight: 900; line-height: 1.6; color: #111; }
+
+    .text-pop { animation: textPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    @keyframes textPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+    #field-cards { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+    .messy-card {
+      position: absolute; width: 50px; height: 50px; border-radius: 50%;
+      background: #fff; border: 4px solid #111; box-shadow: 2px 2px 0 #111;
+      transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+      opacity: 0; transform: scale(0); overflow: hidden;
+    }
+    
+    #field-cards.state-messy .messy-card { opacity: 1; }
+    #field-cards.state-messy #mc-1  { top: 32%; left: 15%; transform: rotate(-15deg) scale(1); }
+    #field-cards.state-messy #mc-2  { top: 30%; left: 38%; transform: rotate(12deg) scale(1); }
+    #field-cards.state-messy #mc-3  { top: 34%; left: 62%; transform: rotate(5deg) scale(1); }
+    #field-cards.state-messy #mc-4  { top: 36%; left: 82%; transform: rotate(-8deg) scale(1); }
+    #field-cards.state-messy #mc-5  { top: 44%; left: 22%; transform: rotate(-22deg) scale(1); }
+    #field-cards.state-messy #mc-6  { top: 46%; left: 50%; transform: rotate(18deg) scale(1); }
+    #field-cards.state-messy #mc-7  { top: 48%; left: 78%; transform: rotate(-14deg) scale(1); }
+    #field-cards.state-messy #mc-8  { top: 58%; left: 15%; transform: rotate(8deg) scale(1); }
+    #field-cards.state-messy #mc-9  { top: 60%; left: 40%; transform: rotate(-10deg) scale(1); }
+    #field-cards.state-messy #mc-10 { top: 56%; left: 68%; transform: rotate(25deg) scale(1); }
+    #field-cards.state-messy #mc-11 { top: 68%; left: 25%; transform: rotate(-5deg) scale(1); }
+    #field-cards.state-messy #mc-12 { top: 66%; left: 58%; transform: rotate(14deg) scale(1); }
+
+    #mc-1  { background-image: url('kado1.png'); background-size: cover; background-position: center; }
+    #mc-2  { background-image: url('kado2.png'); background-size: cover; background-position: center; }
+    #mc-3  { background-image: url('kado3.png'); background-size: cover; background-position: center; }
+    #mc-4  { background-image: url('kado9.png'); background-size: cover; background-position: center; }
+    #mc-5  { background-image: url('kado5.png'); background-size: cover; background-position: center; }
+    #mc-6  { background-image: url('kado6.png'); background-size: cover; background-position: center; }
+    #mc-7  { background-image: url('kado7.png'); background-size: cover; background-position: center; }
+    #mc-8  { background-image: url('kado8.png'); background-size: cover; background-position: center; }
+    #mc-9  { background-image: url('kado4.png'); background-size: cover; background-position: center; }
+    #mc-10 { background-image: url('kado10.png'); background-size: cover; background-position: center; }
+    #mc-11 { background-image: url('kado11.png'); background-size: cover; background-position: center; }
+    #mc-12 { background-image: url('kado12.png'); background-size: cover; background-position: center; }
+
+    .messy-card.in-hand-tr {
+      top: 60px !important; left: auto !important; right: 70px !important;
+      transform: rotate(-10deg) scale(1.40) !important;
+      opacity: 1 !important; z-index: 15;
+    }
+    .messy-card.in-hand-br {
+      top: auto !important; bottom: 50px !important; left: auto !important; right: 100px !important;
+      transform: rotate(-15deg) scale(1.40) !important;
+      opacity: 1 !important; z-index: 15;
+    }
+
+    #field-cards.state-distribute .messy-card { opacity: 1 !important; }
+    #field-cards.state-distribute #mc-1  { top: 20% !important; left: 15% !important; transform: scale(0.7) rotate(-10deg) !important; }
+    #field-cards.state-distribute #mc-2  { top: 26% !important; left: 10% !important; transform: scale(0.7) rotate(15deg) !important; }
+    #field-cards.state-distribute #mc-3  { top: 32% !important; left: 18% !important; transform: scale(0.7) rotate(-5deg) !important; }
+    #field-cards.state-distribute #mc-4  { top: 20% !important; right: 15% !important; left: auto !important; transform: scale(0.7) rotate(10deg) !important; }
+    #field-cards.state-distribute #mc-5  { top: 26% !important; right: 10% !important; left: auto !important; transform: scale(0.7) rotate(-15deg) !important; }
+    #field-cards.state-distribute #mc-6  { top: 32% !important; right: 18% !important; left: auto !important; transform: scale(0.7) rotate(5deg) !important; }
+    #field-cards.state-distribute #mc-7  { bottom: 32% !important; left: 12% !important; top: auto !important; transform: scale(0.7) rotate(-12deg) !important; }
+    #field-cards.state-distribute #mc-8  { bottom: 26% !important; left: 18% !important; top: auto !important; transform: scale(0.7) rotate(8deg) !important; }
+    #field-cards.state-distribute #mc-9  { bottom: 20% !important; left: 12% !important; top: auto !important; transform: scale(0.7) rotate(14deg) !important; }
+    #field-cards.state-distribute #mc-10 { bottom: 32% !important; right: 12% !important; top: auto !important; left: auto !important; transform: scale(0.7) rotate(12deg) !important; }
+    #field-cards.state-distribute #mc-11 { bottom: 26% !important; right: 18% !important; top: auto !important; left: auto !important; transform: scale(0.7) rotate(-8deg) !important; }
+    #field-cards.state-distribute #mc-12 { bottom: 20% !important; right: 12% !important; top: auto !important; left: auto !important; transform: scale(0.7) rotate(-15deg) !important; }
+
+    @keyframes hint-spin {
+      0% { transform: translate(-50%, -50%) rotate(0deg) scale(1.5); }
+      100% { transform: translate(-50%, -50%) rotate(360deg) scale(1.5); }
+    }
+    #field-cards.state-hint .messy-card { opacity: 0 !important; }
+    #field-cards.state-hint #mc-1 {
+      top: 50% !important; left: 50% !important;
+      opacity: 1 !important; z-index: 70 !important;
+      animation: hint-spin 2s linear infinite;
+    }
+
+    .deck-card {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
+      width: 70px; height: 70px; border-radius: 50%; background: #ccc;
+      border: 4px solid #111; box-shadow: 0 5px 0 #888, 0 8px 0 #111;
+      opacity: 0; transition: all 0.4s ease; z-index: 11;
+    }
+    #field-cards.state-deck .deck-card, #field-cards.state-drawn .deck-card, #field-cards.state-win .deck-card {
+      opacity: 1; transform: translate(-50%, -50%) scale(1);
+    }
+    #field-cards.state-shuffling .messy-card {
+      top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) rotate(0deg) scale(1) !important;
+      opacity: 0 !important;
+    }
+
+    .drawn-card {
+      position: absolute; top: 50%; left: 50%; width: 70px; height: 70px; border-radius: 50%;
+      background: #fff; border: 4px solid #111; box-shadow: 2px 2px 0 #111;
+      transform: translate(-50%, -50%) scale(0); opacity: 0;
+      transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 12;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+      background-image: url('kado2.png');
+      background-size: cover;
+      background-position: center;
+    }
+    #field-cards.state-drawn .drawn-card { transform: translate(-50%, -170%) scale(1.2); opacity: 1; }
+    
+    #field-cards.state-win .drawn-card {
+      top: auto !important; bottom: 30px !important; left: 40px !important; right: auto !important;
+      transform: translate(0, 0) scale(1.05) rotate(15deg) !important;
+      opacity: 1 !important; z-index: 15;
+    }
+    
+    @keyframes climax-shake {
+      0%, 100% { transform: translate(0, 0); }
+      25% { transform: translate(-2px, 2px) rotate(-0.5deg); }
+      50% { transform: translate(2px, -2px) rotate(0.5deg); }
+      75% { transform: translate(-2px, -2px) rotate(0deg); }
+    }
+    #app-container.is-climax { animation: climax-shake 0.15s infinite; }
+    #app-container.is-climax .speech-bubble { color: #d32f2f; transform: scale(1.05); }
+
+    #nav-header {
+      position: absolute; top: 12px; left: 0; width: 100%;
+      display: flex; justify-content: space-between; align-items: center; padding: 0 12px;
+      z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    }
+    #nav-header.visible { opacity: 1; pointer-events: auto; }
+    
+    /* ◁ 戻るボタン（左真ん中、小さく丸型） */
+    #left-nav-btn {
+      position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+      z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    }
+    #left-nav-btn.visible { opacity: 1; pointer-events: auto; }
+
+    .pop-btn {
+      background: rgba(255,255,255,0.95); border: 2px solid #111; border-radius: 9999px;
+      padding: 5px 12px; font-size: 11px; font-weight: 900; cursor: pointer;
+      box-shadow: 2px 2px 0 #111; color: #111; transition: transform 0.1s;
+    }
+    .pop-btn:active { transform: scale(0.95); }
+
+    .circle-nav-btn {
+      width: 38px; height: 38px; border-radius: 50%; background: #fff;
+      border: 3px solid #111; box-shadow: 2px 2px 0 #111;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 900; cursor: pointer; color: #111;
+    }
+
+    .pop-select {
+      background: #fff; border: 2px solid #111; border-radius: 16px; padding: 4px 10px;
+      font-size: 11px; font-weight: 900; cursor: pointer; box-shadow: 2px 2px 0 #111; color: #111;
+      outline: none;
+    }
+    
+    .bottom-ui { position: absolute; bottom: 25px; width: 100%; text-align: center; z-index: 100; pointer-events: none; }
+    .tap-hint { font-size: 13px; font-weight: bold; opacity: 0.6; animation: pulse 1.5s infinite; transition: opacity 0.3s; }
+    @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+    
+    .action-btn-group {
+      display: flex; justify-content: center; gap: 8px; margin-top: 12px; pointer-events: auto;
+    }
+    .action-btn {
+      background: #111; color: #fff; font-size: 13px; font-weight: bold; padding: 10px 18px;
+      border-radius: 20px; border: none; cursor: pointer;
+      box-shadow: 0 3px 0 #444; display: none;
+    }
+    .action-btn.hint-btn {
+      background: #ff9800;
+      box-shadow: 0 3px 0 #b26a00;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app-container" onclick="handleTap(event)">
+  
+  <div id="nav-header">
+    <button class="pop-btn" onclick="goTitle(event)">最初に戻る ↺</button>
+    <select id="bgm-selector" class="pop-select" onchange="changeBGM(event)">
+      <option value="none">🎵 BGM: オフ</option>
+      <option value="walk" selected>のんびりスナップ</option>
+      <option value="adventure">ドキドキスナップ</option>
+      <option value="magic">数奇な出会い</option>
+    </select>
+  </div>
+
+  <!-- ◁ 戻るボタン（左真ん中、小さく丸型） -->
+  <div id="left-nav-btn">
+    <button class="circle-nav-btn" onclick="prevStep(event)" title="戻る">◁</button>
+  </div>
+
+  <img src="image_9.PNG" class="corner-char" id="char-tl" alt="[左上のキャラ]">
+  <img src="image_8.PNG" class="corner-char" id="char-tr" alt="[右上のキャラ]">
+  <img src="image_7.PNG" class="corner-char" id="char-bl" alt="[左下のキャラ]">
+  <img src="image_6.PNG" class="corner-char" id="char-br" alt="[右下のキャラ]">
+
+  <div id="field-cards">
+    <div class="messy-card" id="mc-1"></div>
+    <div class="messy-card" id="mc-2"></div>
+    <div class="messy-card" id="mc-3"></div>
+    <div class="messy-card" id="mc-4"></div>
+    <div class="messy-card" id="mc-5"></div>
+    <div class="messy-card" id="mc-6"></div>
+    <div class="messy-card" id="mc-7"></div>
+    <div class="messy-card" id="mc-8"></div>
+    <div class="messy-card" id="mc-9"></div>
+    <div class="messy-card" id="mc-10"></div>
+    <div class="messy-card" id="mc-11"></div>
+    <div class="messy-card" id="mc-12"></div>
+
+    <div class="deck-card"></div>
+    <div class="drawn-card"></div>
+  </div>
+
+  <div class="title-logo-container" id="title-view">
+    <img src="logo.PNG" alt="それだれスナップ" onerror="this.outerHTML='<h1 style=\'font-size:26px;font-weight:900;\'>それだれスナップ</h1>'">
+  </div>
+
+  <div id="bubble-container">
+    <div class="speech-bubble">
+      <div class="bubble-text" id="bubble-text"></div>
+    </div>
+  </div>
+
+  <div id="center-box">
+    <div class="center-text" id="center-text"></div>
+  </div>
+
+  <div class="bottom-ui">
+    <div class="tap-hint" id="tap-hint">タップして次 →</div>
+    <div class="action-btn-group">
+      <button class="action-btn" id="btn-skip" onclick="skipDemo(event)">スキップ ➔</button>
+      <button class="action-btn hint-btn" id="btn-hint" onclick="showHint(event)">ヒント 💡</button>
+      <button class="action-btn" id="btn-finish" onclick="goTitle(event)">最初に戻る ↺</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const SCENARIO = [
+    { type: 'title' },
+    { display: 'center', text: 'それだれスナップの遊び方を<br>紹介するよ〜！' },
+    { display: 'center', text: 'まずは<br>全員 順番に自己紹介しよう！' },
+    { display: 'center', text: 'ゲーム中それぞれの名前が<br>確認できるようにしよう！<br>（名札を置くなど）' },
+    
+    { display: 'speech', speaker: 'br', text: 'じゃあゲーム開始！<br>絵がオモテになるように<br>カードを全て置いてね', cardState: 'messy' },
+    { display: 'speech', speaker: 'tl', text: '「自分に関連するカードを<br>選んで自己紹介！」<br>やってみるから見てて！', cardState: 'messy', showSkip: true },
+    
+    { display: 'speech', speaker: 'tr', text: '僕はこのカードを選んだよ！<br>テニスが得意なタナカです！<br>よろしくお願いします！', cardState: 'messy', handTr: true },
+    { display: 'speech', speaker: 'bl', text: 'なるほど〜！<br>そのカードが<br>テニスのラケットに見えたんだね', cardState: 'messy', handTr: true },
+    { display: 'speech', speaker: 'tl', text: '自己紹介したらカードは<br>その人が持っておくよ', cardState: 'messy', handTr: true },
+    
+    { display: 'speech', speaker: 'br', text: 'じゃあ次は私！<br>昨日雑草抜きを手伝いました<br>こやまです！', cardState: 'messy', handTr: true, handBr: true },
+    
+    { display: 'speech', speaker: 'tl', text: 'こんな感じで一人3枚<br>カードを取るまでやろう！<br>じゃあやってみよう！', cardState: 'distribute', isSkipTarget: true, showHint: true },
+    { display: 'center', speaker: 'tr', text: '場に残った<br>カードは集めて<br>箱にしまってね', cardState: 'none' },
+    
+    { display: 'center', speaker: 'bl', text: 'みんなの取ったカードを<br>集めてシャッフルしてね！<br>これを裏にして山札にするよ', cardState: 'shuffling' },
+    { display: 'speech', speaker: 'br', text: '実演するから見てて！<br>山札から一枚めくって、<br>誰のとったカードだったのか思い出して…', cardState: 'deck' },
+    
+    { display: 'speech', speaker: 'br', text: 'その人の名前を当てよう！', cardState: 'drawn' },
+    
+    { display: 'speech', speaker: 'bl', text: '・・・タナカさん！！！！', cardState: 'drawn', climax: true },
+    
+    { display: 'speech', speaker: 'tr', text: 'あーそうだ！テニスだ！<br>はやーい！', cardState: 'drawn' },
+    
+    { display: 'speech', speaker: 'bl', text: '一番早く名前を当てた人が<br>そのカードをとるよ！', cardState: 'win' },
+    
+    { display: 'speech', speaker: 'br', text: '山札がなくなるまで繰り返して<br>最後に一番多くカードを<br>持ってた人の勝ち！', cardState: 'win' },
+    
+    { display: 'center', text: 'みんなもやってみよう！<br>山札からカードを一枚めくって<br>スタート！', cardState: 'win', isEnd: true }
+  ];
+
+  let currentStep = 0;
+  let audioCtx = null;
+  let isHintActive = false;
+  
+  let bgmTimer = null;
+  let currentBgmType = 'walk';
+  let noteIndex = 0;
+
+  function initAudioContext() {
+    if (!audioCtx) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {
+        audioCtx = new AudioContextClass();
+      }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  }
+
+  function playPopSound(isClimax = false) {
+    try {
+      initAudioContext();
+      if (!audioCtx) return;
+      
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      
+      // SEの音量を基準（0.2）に設定
+      if (isClimax) {
+        osc.type = 'square'; osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(900, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      } else {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(420, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      }
+      
+      gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + (isClimax ? 0.1 : 0.08));
+      osc.start(); osc.stop(audioCtx.currentTime + (isClimax ? 0.1 : 0.08));
+    } catch(e) {}
+  }
+
+  function startBGM() {
+    stopBGM();
+    if (currentBgmType === 'none') return;
+
+    initAudioContext();
+    if (!audioCtx) return;
+
+    const melodies = {
+      walk: [261.63, 293.66, 329.63, 392.00, 440.00, 392.00, 329.63, 293.66],
+      adventure: [330.00, 392.00, 440.00, 523.25, 440.00, 493.88, 587.33, 523.25],
+      magic: [523.25, 659.25, 783.99, 1046.50, 783.99, 659.25, 523.25, 392.00]
+    };
+
+    const notes = melodies[currentBgmType] || melodies.walk;
+    noteIndex = 0;
+
+    bgmTimer = setInterval(() => {
+      try {
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.type = currentBgmType === 'adventure' ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(notes[noteIndex], audioCtx.currentTime);
+
+        // 🎵 BGMの音量をSEと同じぐらい（0.18〜0.2）に引き上げて聴き取りやすく調整
+        gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.28);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+
+        noteIndex = (noteIndex + 1) % notes.length;
+      } catch(e) {}
+    }, 320);
+  }
+
+  function stopBGM() {
+    if (bgmTimer) {
+      clearInterval(bgmTimer);
+      bgmTimer = null;
+    }
+  }
+
+  function changeBGM(e) {
+    currentBgmType = e.target.value;
+    initAudioContext();
+    startBGM();
+  }
+
+  function render() {
+    isHintActive = false; 
+    const step = SCENARIO[currentStep];
+    const app = document.getElementById('app-container');
+    const bubbleContainer = document.getElementById('bubble-container');
+    const bubbleText = document.getElementById('bubble-text');
+    const centerBox = document.getElementById('center-box');
+    const centerText = document.getElementById('center-text');
+    const fieldCards = document.getElementById('field-cards');
+    
+    document.querySelectorAll('.corner-char').forEach(el => el.classList.remove('speaking'));
+
+    if (step.type === 'title') {
+      app.classList.add('is-title');
+      document.getElementById('nav-header').classList.remove('visible');
+      document.getElementById('left-nav-btn').classList.remove('visible');
+      bubbleContainer.classList.remove('visible');
+      centerBox.classList.remove('visible');
+      fieldCards.className = ''; 
+    } else {
+      app.classList.remove('is-title');
+      document.getElementById('nav-header').classList.add('visible');
+      document.getElementById('left-nav-btn').classList.add('visible');
+
+      if (step.display === 'center') {
+        bubbleContainer.classList.remove('visible');
+        centerBox.classList.add('visible');
+        centerText.innerHTML = step.text;
+      } else {
+        centerBox.classList.remove('visible');
+        bubbleContainer.classList.add('visible');
+
+        bubbleText.classList.remove('text-pop');
+        void bubbleText.offsetWidth; 
+        bubbleText.innerHTML = step.text;
+        bubbleText.classList.add('text-pop');
+
+        bubbleContainer.className = `visible`;
+        
+        if (step.speaker && step.speaker !== 'none') {
+          const speakerEl = document.getElementById(`char-${step.speaker}`);
+          if (speakerEl) speakerEl.classList.add('speaking');
+        }
+      }
+    }
+
+    if (step.cardState) fieldCards.className = `state-${step.cardState}`;
+    else if (currentStep > 0) fieldCards.className = ''; 
+
+    const mc2 = document.getElementById('mc-2');
+    const mc4 = document.getElementById('mc-4');
+    if (mc2) step.handTr ? mc2.classList.add('in-hand-tr') : mc2.classList.remove('in-hand-tr');
+    if (mc4) step.handBr ? mc4.classList.add('in-hand-br') : mc4.classList.remove('in-hand-br');
+
+    if (step.climax) {
+      app.classList.add('is-climax');
+      playPopSound(true);
+    } else {
+      app.classList.remove('is-climax');
+    }
+
+    document.getElementById('btn-skip').style.display = step.showSkip ? 'inline-block' : 'none';
+    document.getElementById('btn-hint').style.display = step.showHint ? 'inline-block' : 'none';
+    
+    if (step.isEnd) {
+      document.getElementById('tap-hint').style.display = 'none';
+      document.getElementById('btn-finish').style.display = 'inline-block';
+    } else {
+      document.getElementById('tap-hint').style.display = 'block';
+      document.getElementById('btn-finish').style.display = 'none';
+    }
+  }
+
+  function handleTap(e) {
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return; 
+    
+    initAudioContext();
+    if (!bgmTimer && currentBgmType !== 'none') {
+      startBGM();
+    }
+
+    if (currentStep < SCENARIO.length - 1) {
+      currentStep++;
+      playPopSound(SCENARIO[currentStep].climax);
+      render();
+    }
+  }
+
+  function prevStep(e) {
+    e.stopPropagation();
+    initAudioContext();
+    if (currentStep > 0) { currentStep--; playPopSound(); render(); }
+  }
+
+  function goTitle(e) {
+    e.stopPropagation();
+    initAudioContext();
+    currentStep = 0; playPopSound(); render();
+  }
+
+  function skipDemo(e) {
+    e.stopPropagation();
+    initAudioContext();
+    const targetIdx = SCENARIO.findIndex(s => s.isSkipTarget);
+    if (targetIdx !== -1) { currentStep = targetIdx; playPopSound(); render(); }
+  }
+
+  function showHint(e) {
+    e.stopPropagation();
+    initAudioContext();
+    isHintActive = true;
+    playPopSound(true);
+
+    document.getElementById('field-cards').className = 'state-hint';
+
+    const bubbleText = document.getElementById('bubble-text');
+    bubbleText.classList.remove('text-pop');
+    void bubbleText.offsetWidth;
+    bubbleText.innerHTML = 'どんなしょうもないエピソードや<br>関連づけ方でも大丈夫！<br>思い付かない時は、<br>いろんな方向から見てみよう〜！';
+    bubbleText.classList.add('text-pop');
+
+    document.querySelectorAll('.corner-char').forEach(el => el.classList.remove('speaking'));
+    document.getElementById('char-tl').classList.add('speaking');
+  }
+
+  window.onload = () => {
+    render();
+    const triggerAudio = () => {
+      initAudioContext();
+      if (!bgmTimer && currentBgmType !== 'none') {
+        startBGM();
+      }
+      window.removeEventListener('pointerdown', triggerAudio);
+    };
+    window.addEventListener('pointerdown', triggerAudio);
+  };
+</script>
+
+</body>
+</html>
